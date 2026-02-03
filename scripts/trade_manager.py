@@ -25,9 +25,29 @@ class Position:
         self.avg_volumes = [pos_vol]
         self.avg_count = 0
         self.total_volume = pos_vol
-        self.stop_loss_price = (entry_price * (1 - slPercent / 100)) if useSL and self.is_long else ((entry_price * (1 + slPercent / 100)) if useSL else None)
-        self.take_profit_price = (entry_price * (1 + tpPercent / 100)) if useTP and self.is_long else ((entry_price * (1 - tpPercent / 100)) if useTP else None)
+        # initialize stops/tp based on entry; update_targets is used after averaging
+        if useSL:
+            self.stop_loss_price = (entry_price * (1 - slPercent / 100)) if self.is_long else (entry_price * (1 + slPercent / 100))
+        else:
+            self.stop_loss_price = None
+        if useTP:
+            self.take_profit_price = (entry_price * (1 + tpPercent / 100)) if self.is_long else (entry_price * (1 - tpPercent / 100))
+        else:
+            self.take_profit_price = None
 
+    def update_targets(self, useSL: bool, useTP: bool, slPercent: float, tpPercent: float):
+        """Recompute stop-loss and take-profit based on current average price."""
+        ap = self.avg_price()
+        if ap is None:
+            return
+        if useSL:
+            self.stop_loss_price = (ap * (1 - slPercent / 100)) if self.is_long else (ap * (1 + slPercent / 100))
+        else:
+            self.stop_loss_price = None
+        if useTP:
+            self.take_profit_price = (ap * (1 + tpPercent / 100)) if self.is_long else (ap * (1 - tpPercent / 100))
+        else:
+            self.take_profit_price = None
     def avg_price(self) -> Optional[float]:
         return pine_calc.calculate_average_price(self.avg_prices, self.avg_volumes)
 
