@@ -1,0 +1,4 @@
+// ============================================
+if barstate.islast
+drawDashboard()
+

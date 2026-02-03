@@ -1,0 +1,32 @@
+// ============================================
+var float currentBalance = initialDeposit
+var float maxBalance = initialDeposit
+var float maxDrawdownValue = 0.0
+var bool tradingEnabled = true
+var bool botStopped = false
+
+var float longEntryPrice = na
+var float shortEntryPrice = na
+var int longAvgCount = 0
+var int shortAvgCount = 0
+var float longTotalVolume = 0.0
+var float shortTotalVolume = 0.0
+var bool longPositionActive = false
+var bool shortPositionActive = false
+var bool anyPositionActive = false
+
+var int totalWins = 0
+var int totalLosses = 0
+var float totalProfit = 0.0
+var float totalCommission = 0.0
+
+var array<float> longAvgPrices = array.new<float>(10, na)
+var array<float> shortAvgPrices = array.new<float>(10, na)
+var array<float> longAvgVolumes = array.new<float>(10, 0.0)
+var array<float> shortAvgVolumes = array.new<float>(10, 0.0)
+
+var float longStopLossPrice = na
+var float longTakeProfitPrice = na
+var float shortStopLossPrice = na
+var float shortTakeProfitPrice = na
+

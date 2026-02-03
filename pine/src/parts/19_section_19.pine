@@ -1,0 +1,7 @@
+// ============================================
+rsi = ta.rsi(close, rsiLength)
+bbBasis = ta.sma(close, bbLength)
+bbDev = bbStdDev * ta.stdev(close, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+

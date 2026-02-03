@@ -1,0 +1,182 @@
+// ============================================
+if barstate.isconfirmed and not botStopped and isInTimePeriod()
+// Обновляем статус активной позиции
+anyPositionActive := longPositionActive or shortPositionActive
+
+// ОБНОВЛЯЕМ МАКСИМАЛЬНЫЙ БАЛАНС И ПРОСАДКУ
+if currentBalance > maxBalance
+maxBalance := currentBalance
+
+drawdown = ((maxBalance - currentBalance) / maxBalance) * 100
+maxDrawdownValue := math.max(maxDrawdownValue, drawdown)
+
+// ЛОГИКА ОТКРЫТИЯ ПОЗИЦИЙ (УПРОЩЕННЫЙ РАСЧЕТ ОБЪЕМА)
+if tradingEnabled and not anyPositionActive
+// ПРОВЕРКА СИГНАЛА НА ЛОНГ
+if finalLongSignal and (botMode == "Оба" or botMode == "Только Лонг")
+// Рассчитываем объем (% от депозита)
+posVol = calculatePositionVolume(close)
+
+// Проверяем достаточность средств
+if posVol > 0 and checkSufficientFunds(posVol, close)
+// Открываем позицию ПО РЫНКУ (маркет)
+longEntryPrice := close
+longPositionActive := true
+longAvgCount := 0
+longTotalVolume := posVol
+
+// Рассчитываем стоп-лосс и тейк-профит ПОСЛЕ открытия
+longStopLossPrice := useSL ? close * (1 - slPercent / 100) : na
+longTakeProfitPrice := useTP ? close * (1 + tpPercent / 100) : na
+
+// Инициализируем массивы для усреднения
+array.fill(longAvgPrices, na)
+array.fill(longAvgVolumes, 0.0)
+array.set(longAvgPrices, 0, longEntryPrice)
+array.set(longAvgVolumes, 0, posVol)
+
+// ПРОВЕРКА СИГНАЛА НА ШОРТ
+else if finalShortSignal and (botMode == "Оба" or botMode == "Только Шорт")
+// Рассчитываем объем (% от депозита)
+posVol = calculatePositionVolume(close)
+
+// Проверяем достаточность средств
+if posVol > 0 and checkSufficientFunds(posVol, close)
+// Открываем позицию ПО РЫНКУ (маркет)
+shortEntryPrice := close
+shortPositionActive := true
+shortAvgCount := 0
+shortTotalVolume := posVol
+
+// Рассчитываем стоп-лосс и тейк-профит ПОСЛЕ открытия
+shortStopLossPrice := useSL ? close * (1 + slPercent / 100) : na
+shortTakeProfitPrice := useTP ? close * (1 - tpPercent / 100) : na
+
+// Инициализируем массивы для усреднения
+array.fill(shortAvgPrices, na)
+array.fill(shortAvgVolumes, 0.0)
+array.set(shortAvgPrices, 0, shortEntryPrice)
+array.set(shortAvgVolumes, 0, posVol)
+
+// ЛОГИКА УСРЕДНЕНИЯ (ТОЛЬКО В СТОРОНУ УБЫТКА)
+if longPositionActive and useAveraging and longAvgCount < maxAvgCount
+avgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+if not na(avgPrice) and close < avgPrice // Только если цена ниже средней
+nextAvgPrice = avgPrice * (1 - avgDistancePercent / 100)
+if close <= nextAvgPrice
+// Рассчитываем новый объем по мартингейлу (от общего объема)
+newVol = longTotalVolume * martingaleMultiplier
+
+// Проверяем достаточность средств
+if checkSufficientFunds(newVol, close)
+// Усредняем позицию
+longAvgCount := longAvgCount + 1
+array.set(longAvgPrices, longAvgCount, close)
+array.set(longAvgVolumes, longAvgCount, newVol)
+longTotalVolume := longTotalVolume + newVol
+
+// Пересчитываем среднюю цену для новых ордеров
+newAvgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+// Обновляем стоп-лосс и тейк-профит на основе новой средней цены
+longStopLossPrice := useSL ? newAvgPrice * (1 - slPercent / 100) : na
+longTakeProfitPrice := useTP ? newAvgPrice * (1 + tpPercent / 100) : na
+
+if shortPositionActive and useAveraging and shortAvgCount < maxAvgCount
+avgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+if not na(avgPrice) and close > avgPrice // Только если цена выше средней
+nextAvgPrice = avgPrice * (1 + avgDistancePercent / 100)
+if close >= nextAvgPrice
+// Рассчитываем новый объем по мартингейлу (от общего объема)
+newVol = shortTotalVolume * martingaleMultiplier
+
+// Проверяем достаточность средств
+if checkSufficientFunds(newVol, close)
+// Усредняем позицию
+shortAvgCount := shortAvgCount + 1
+array.set(shortAvgPrices, shortAvgCount, close)
+array.set(shortAvgVolumes, shortAvgCount, newVol)
+shortTotalVolume := shortTotalVolume + newVol
+
+// Пересчитываем среднюю цену для новых ордеров
+newAvgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+// Обновляем стоп-лосс и тейк-профит на основе новой средней цены
+shortStopLossPrice := useSL ? newAvgPrice * (1 + slPercent / 100) : na
+shortTakeProfitPrice := useTP ? newAvgPrice * (1 - tpPercent / 100) : na
+
+// ЛОГИКА ЗАКРЫТИЯ ПОЗИЦИЙ
+if longPositionActive
+avgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+if not na(avgPrice)
+shouldClose = false
+closeReason = ""
+
+// Проверка Тейк-Профита
+if useTP and close >= longTakeProfitPrice
+shouldClose := true
+closeReason := "TP"
+
+// Проверка Стоп-Лосса
+else if useSL and close <= longStopLossPrice
+shouldClose := true
+closeReason := "SL"
+
+// Проверка ликвидации (если не используем SL)
+else if not useSL
+liqPrice = calculateLiquidationPrice(avgPrice, true)
+if close <= liqPrice
+shouldClose := true
+closeReason := "LIQ"
+
+if shouldClose
+// ИЗМЕНЕНИЕ: используем переименованную переменную
+profit = calculatePnL(avgPrice, close, longTotalVolume, true)
+currentBalance := currentBalance + profit
+totalProfit := totalProfit + profit
+totalCommission := totalCommission + calculateCommission(longTotalVolume, close)
+
+if profit >= 0
+totalWins := totalWins + 1
+else
+totalLosses := totalLosses + 1
+
+longPositionActive := false
+longAvgCount := 0
+
+if shortPositionActive
+avgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+if not na(avgPrice)
+shouldClose = false
+closeReason = ""
+
+// Проверка Тейк-Профита
+if useTP and close <= shortTakeProfitPrice
+shouldClose := true
+closeReason := "TP"
+
+// Проверка Стоп-Лосса
+else if useSL and close >= shortStopLossPrice
+shouldClose := true
+closeReason := "SL"
+
+// Проверка ликвидации (если не используем SL)
+else if not useSL
+liqPrice = calculateLiquidationPrice(avgPrice, false)
+if close >= liqPrice
+shouldClose := true
+closeReason := "LIQ"
+
+if shouldClose
+// ИЗМЕНЕНИЕ: используем переименованную переменную
+profit = calculatePnL(avgPrice, close, shortTotalVolume, false)
+currentBalance := currentBalance + profit
+totalProfit := totalProfit + profit
+totalCommission := totalCommission + calculateCommission(shortTotalVolume, close)
+
+if profit >= 0
+totalWins := totalWins + 1
+else
+totalLosses := totalLosses + 1
+
+shortPositionActive := false
+shortAvgCount := 0
+

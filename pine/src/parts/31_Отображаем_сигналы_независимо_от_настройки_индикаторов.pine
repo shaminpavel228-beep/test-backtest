@@ -1,0 +1,40 @@
+// ============================================
+// Отображаем сигналы независимо от настройки индикаторов
+plotshape(showLongSignal and tradingEnabled and not anyPositionActive and (botMode == "Оба" or botMode == "Только Лонг") and isInTimePeriod(), "Long Signal", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
+plotshape(showShortSignal and tradingEnabled and not anyPositionActive and (botMode == "Оба" or botMode == "Только Шорт") and isInTimePeriod(), "Short Signal", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small)
+
+plot(bbUpper, "BB Upper", color=color.blue, linewidth=1, display = useBB ? display.all : display.none)
+plot(bbBasis, "BB Basis", color=color.orange, linewidth=1, display = useBB ? display.all : display.none)
+plot(bbLower, "BB Lower", color=color.blue, linewidth=1, display = useBB ? display.all : display.none)
+
+if showDashboard
+if longPositionActive
+avgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+if not na(avgPrice)
+line.new(bar_index-10, avgPrice, bar_index, avgPrice, color=color.new(color.green, 50), width=2, style=line.style_solid)
+
+if useTP and not na(longTakeProfitPrice)
+line.new(bar_index-10, longTakeProfitPrice, bar_index, longTakeProfitPrice, color=color.new(color.green, 70), width=1, style=line.style_dashed)
+
+if useSL and not na(longStopLossPrice)
+line.new(bar_index-10, longStopLossPrice, bar_index, longStopLossPrice, color=color.new(color.red, 70), width=1, style=line.style_dashed)
+
+if useAveraging and longAvgCount < maxAvgCount
+nextAvgPrice = avgPrice * (1 - avgDistancePercent / 100)
+line.new(bar_index-10, nextAvgPrice, bar_index, nextAvgPrice, color=color.new(color.orange, 50), width=1, style=line.style_dotted)
+
+if shortPositionActive
+avgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+if not na(avgPrice)
+line.new(bar_index-10, avgPrice, bar_index, avgPrice, color=color.new(color.red, 50), width=2, style=line.style_solid)
+
+if useTP and not na(shortTakeProfitPrice)
+line.new(bar_index-10, shortTakeProfitPrice, bar_index, shortTakeProfitPrice, color=color.new(color.green, 70), width=1, style=line.style_dashed)
+
+if useSL and not na(shortStopLossPrice)
+line.new(bar_index-10, shortStopLossPrice, bar_index, shortStopLossPrice, color=color.new(color.red, 70), width=1, style=line.style_dashed)
+
+if useAveraging and shortAvgCount < maxAvgCount
+nextAvgPrice = avgPrice * (1 + avgDistancePercent / 100)
+line.new(bar_index-10, nextAvgPrice, bar_index, nextAvgPrice, color=color.new(color.orange, 50), width=1, style=line.style_dotted)
+

@@ -1,0 +1,3 @@
+//@version=5
+indicator("🎛️ БЕКТЕСТ ДЛЯ СТРАТЕГИЙ v3.7", overlay=true, max_labels_count=500, max_lines_count=500, max_bars_back=5000)
+

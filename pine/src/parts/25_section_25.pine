@@ -1,0 +1,56 @@
+// ============================================
+
+calculateAveragePrice(prices, volumes) =>
+totalValue = 0.0
+totalVol = 0.0
+for i = 0 to array.size(prices) - 1
+price = array.get(prices, i)
+vol = array.get(volumes, i)
+if not na(price)
+totalValue := totalValue + price * vol
+totalVol := totalVol + vol
+totalVol > 0 ? totalValue / totalVol : na
+
+// УПРОЩЕННЫЙ РАСЧЕТ ОБЪЕМА (только % от депозита)
+calculatePositionVolume(entryPrice) =>
+// Просто % от текущего баланса
+posVol = (currentBalance * (riskPerTrade / 100)) / entryPrice
+
+// Ограничиваем максимальным объемом по плечу
+maxVol = (currentBalance * leverage) / entryPrice
+posVol := math.min(posVol, maxVol)
+posVol
+
+// ИЗМЕНЕНИЕ: переименовал параметр volume -> tradeVol
+calculateCommission(tradeVol, price) =>
+(tradeVol * price) * (commission / 100)
+
+calculateLiquidationPrice(entryPrice, isLong) =>
+if marginType == "Изолированная"
+if isLong
+entryPrice * (1 - (1 / leverage) * 0.9)
+else
+entryPrice * (1 + (1 / leverage) * 0.9)
+else
+if isLong
+entryPrice * (1 - (1 / leverage) * 0.8)
+else
+entryPrice * (1 + (1 / leverage) * 0.8)
+
+checkSufficientFunds(tradeVol, price) =>
+requiredMargin = (tradeVol * price) / leverage
+freeMargin = currentBalance - (longTotalVolume * (longPositionActive ? longEntryPrice : 0) + shortTotalVolume * (shortPositionActive ? shortEntryPrice : 0)) / leverage
+requiredMargin <= freeMargin
+
+// ИЗМЕНЕНИЕ: переименовал параметр volume -> tradeVol
+calculatePnL(entryPrice, exitPrice, tradeVol, isLong) =>
+float profit = 0.0
+if isLong
+profit := (exitPrice - entryPrice) * tradeVol
+else
+profit := (entryPrice - exitPrice) * tradeVol
+
+// ИЗМЕНЕНИЕ: используем переименованный параметр
+commissionFee = calculateCommission(tradeVol, exitPrice)
+profit - commissionFee
+

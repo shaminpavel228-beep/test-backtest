@@ -1,0 +1,10 @@
+// ============================================
+if barstate.islast
+balanceChange = ((currentBalance - initialDeposit) / initialDeposit) * 100
+winRateValue = totalWins + totalLosses > 0 ? (totalWins / (totalWins + totalLosses)) * 100 : 0
+
+// Определяем текущий период
+infoStartDateStr = useCustomStartDate ? formatDate(startDate) : "НАЧАЛО ГРАФИКА"
+infoEndDateStr = useRealTimeEnd ? "ИДЕТ ТОРГОВЛЯ" : formatDate(endDate)
+infoText = "🎛️ БЕКТЕСТ ДЛЯ СТРАТЕГИЙ v3.7 | Период: " + infoStartDateStr + " - " + infoEndDateStr + " | Баланс: $" + str.tostring(currentBalance, "#.##") + " (" + str.tostring(balanceChange, "#.##") + "%) | Win Rate: " + str.tostring(winRateValue, "#.##") + "% | Сделок: " + str.tostring(totalWins + totalLosses)
+label.new(bar_index, high * 1.02, infoText, color=color.new(#1A237E, 90), textcolor=color.white, style=label.style_label_center, size=size.normal)

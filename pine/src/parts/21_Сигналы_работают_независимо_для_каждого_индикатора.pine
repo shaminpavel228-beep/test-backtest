@@ -1,0 +1,28 @@
+// ============================================
+// Сигналы работают независимо для каждого индикатора
+rsiLongSignal = useRSI and rsi <= rsiLongLevel
+rsiShortSignal = useRSI and rsi >= rsiShortLevel
+bbLongSignal = useBB and close <= bbLower
+bbShortSignal = useBB and close >= bbUpper
+
+// Финальные сигналы (с учетом настроек индикаторов)
+finalLongSignal = false
+finalShortSignal = false
+
+if useRSI and useBB
+// Если оба индикатора включены - нужны сигналы от обоих
+finalLongSignal := rsiLongSignal and bbLongSignal
+finalShortSignal := rsiShortSignal and bbShortSignal
+else if useRSI
+// Если включен только RSI
+finalLongSignal := rsiLongSignal
+finalShortSignal := rsiShortSignal
+else if useBB
+// Если включен только BB
+finalLongSignal := bbLongSignal
+finalShortSignal := bbShortSignal
+
+// Сигналы для отображения на графике (работают независимо)
+showLongSignal = rsiLongSignal or bbLongSignal
+showShortSignal = rsiShortSignal or bbShortSignal
+

@@ -1,0 +1,264 @@
+// ============================================
+drawDashboard() =>
+if barstate.islast and showDashboard
+tablePos = switch dashboardPosition
+"Top Left" => position.top_left
+"Top Center" => position.top_center
+"Top Right" => position.top_right
+"Bottom Left" => position.bottom_left
+"Bottom Center" => position.bottom_center
+"Bottom Right" => position.bottom_right
+=> position.top_right
+
+// ФИКСИРУЕМ 3 КОЛОНКИ (убрали dashboardColumns)
+dash = table.new(tablePos, 3, 45, bgcolor = color.new(#000000, 80), border_color = color.new(#555555, 50))
+row = 0
+
+// ЗАГОЛОВОК (всегда показываем)
+table.cell(dash, 0, row, "🎛️ БЕКТЕСТ ДЛЯ СТРАТЕГИЙ", bgcolor = color.new(#4A148C, 90), text_color = color.white, text_size = size.normal)
+table.cell(dash, 1, row, "Версия 3.7", bgcolor = color.new(#4A148C, 90), text_color = color.yellow, text_size = size.small)
+table.cell(dash, 2, row, timeframe.period, bgcolor = color.new(#4A148C, 90), text_color = color.white, text_size = size.small)
+
+row := row + 1
+
+// 1. ⚡ СТАТУС
+if showStatusSection
+table.cell(dash, 0, row, "⚡ СТАТУС", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "Бот:", text_color = color.gray)
+statusText = botStopped ? "ОСТАНОВЛЕН" : tradingEnabled ? "АКТИВЕН" : "ПАУЗА"
+statusColor = botStopped ? color.red : tradingEnabled ? color.green : color.orange
+table.cell(dash, 2, row, statusText, text_color = statusColor)
+
+row := row + 1
+
+// 2. ⏳ ВРЕМЕННОЙ ПЕРИОД
+if showTimePeriod
+table.cell(dash, 0, row, "⏳ ВРЕМЕННОЙ ПЕРИОД", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+
+// Используем локальные переменные с другими именами
+localStartDateStr = useCustomStartDate ? formatDate(startDate) : "НАЧАЛО ГРАФИКА"
+localEndDateStr = useRealTimeEnd ? "ИДЕТ ТОРГОВЛЯ" : formatDate(endDate)
+
+table.cell(dash, 1, row, localStartDateStr + " -", text_color = color.gray)
+table.cell(dash, 2, row, localEndDateStr, text_color = color.white)
+
+row := row + 1
+
+// 3. ⚙️ НАСТРОЙКИ
+if showSettingsSection
+table.cell(dash, 0, row, "⚙️ НАСТРОЙКИ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "Режим:", text_color = color.gray)
+botColor = botMode == "Оба" ? color.orange : botMode == "Только Лонг" ? color.green : color.red
+table.cell(dash, 2, row, botMode, text_color = botColor)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Маржа:", text_color = color.gray)
+table.cell(dash, 2, row, marginType, text_color = color.blue)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Плечо:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(leverage) + "x", text_color = color.yellow)
+
+row := row + 1
+
+// 4. 📊 РИСК
+if showRiskSection
+table.cell(dash, 0, row, "📊 РИСК", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "% от депозита:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(riskPerTrade, "#.#") + "%", text_color = color.yellow)
+
+row := row + 1
+
+// 5. 💰 КАПИТАЛ
+if showCapitalSection
+table.cell(dash, 0, row, "💰 КАПИТАЛ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "Начальный:", text_color = color.gray)
+table.cell(dash, 2, row, "$" + str.tostring(initialDeposit, "#.##"), text_color = color.white)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Текущий:", text_color = color.gray)
+balanceColor = currentBalance >= initialDeposit ? color.green : color.red
+table.cell(dash, 2, row, "$" + str.tostring(currentBalance, "#.##"), text_color = balanceColor)
+
+row := row + 1
+
+profitPercent = ((currentBalance - initialDeposit) / initialDeposit) * 100
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Прибыль:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(profitPercent, "#.##") + "%", text_color = profitPercent >= 0 ? color.green : color.red)
+
+row := row + 1
+
+// 6. 💰 ПРИБЫЛЬ
+if showProfitSection
+table.cell(dash, 0, row, "💰 ПРИБЫЛЬ", bgcolor = color.new(#4A148C, 80), text_color = color.white)
+table.cell(dash, 1, row, "Всего:", text_color = color.gray)
+table.cell(dash, 2, row, "$" + str.tostring(totalProfit, "#.##"), text_color = totalProfit >= 0 ? color.green : color.red)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Комиссии:", text_color = color.gray)
+table.cell(dash, 2, row, "$" + str.tostring(totalCommission, "#.##"), text_color = color.orange)
+
+row := row + 1
+
+// 7. 📊 СТАТИСТИКА
+if showStatisticsSection
+table.cell(dash, 0, row, "📊 СТАТИСТИКА", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "Побед:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(totalWins), text_color = color.green)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Поражений:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(totalLosses), text_color = color.red)
+
+row := row + 1
+
+winRate = totalWins + totalLosses > 0 ? (totalWins / (totalWins + totalLosses)) * 100 : 0
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Винрейт:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(winRate, "#.##") + "%", text_color = winRate >= 50 ? color.green : color.red)
+
+row := row + 1
+
+// 8. 📊 ИНДИКАТОРЫ
+if showIndicatorsSection
+table.cell(dash, 0, row, "📊 ИНДИКАТОРЫ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "RSI:", text_color = color.gray)
+rsiColor = rsi <= 30 ? color.green : rsi >= 70 ? color.red : color.white
+table.cell(dash, 2, row, str.tostring(rsi, "#.##"), text_color = rsiColor)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "BB:", text_color = color.gray)
+bbPos = close <= bbLower ? "НИЗ" : close >= bbUpper ? "ВЕРХ" : "СРЕД"
+bbPosColor = close <= bbLower ? color.green : close >= bbUpper ? color.red : color.gray
+table.cell(dash, 2, row, bbPos, text_color = bbPosColor)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "Цена:", text_color = color.gray)
+table.cell(dash, 2, row, str.tostring(close, "#.#####"), text_color = color.white)
+
+row := row + 1
+
+// 9. 🎯 СИГНАЛЫ
+if showSignalsSection
+table.cell(dash, 0, row, "🎯 СИГНАЛЫ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+table.cell(dash, 1, row, "RSI:", text_color = color.gray)
+rsiSignal = rsiLongSignal or rsiShortSignal
+table.cell(dash, 2, row, rsiSignal ? "ДА" : "НЕТ", text_color = rsiSignal ? color.green : color.red)
+
+row := row + 1
+
+table.cell(dash, 0, row, "", text_color = color.gray)
+table.cell(dash, 1, row, "BB:", text_color = color.gray)
+bbSignal = bbLongSignal or bbShortSignal
+table.cell(dash, 2, row, bbSignal ? "ДА" : "НЕТ", text_color = bbSignal ? color.green : color.red)
+
+row := row + 1
+
+// 10. 📈 ПОЗИЦИЯ
+if showPositionSection
+table.cell(dash, 0, row, "📈 ПОЗИЦИЯ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+if longPositionActive
+table.cell(dash, 1, row, "ЛОНГ", bgcolor = color.new(#1B5E20, 70), text_color = color.white)
+else if shortPositionActive
+table.cell(dash, 1, row, "ШОРТ", bgcolor = color.new(#B71C1C, 70), text_color = color.white)
+else
+table.cell(dash, 1, row, "НЕТ", bgcolor = color.new(#424242, 70), text_color = color.white)
+
+if longPositionActive or shortPositionActive
+table.cell(dash, 2, row, "АКТИВНА", text_color = color.green)
+else
+table.cell(dash, 2, row, "ОЖИДАНИЕ", text_color = color.gray)
+
+row := row + 1
+
+if longPositionActive
+avgPriceLong = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+table.cell(dash, 0, row, "Цена входа:", text_color = color.gray)
+table.cell(dash, 1, row, str.tostring(avgPriceLong, "#.#####"), text_color = color.green)
+currentPLLong = not na(avgPriceLong) ? ((close - avgPriceLong) / avgPriceLong) * 100 : 0
+table.cell(dash, 2, row, str.tostring(currentPLLong, "#.##") + "%", text_color = currentPLLong >= 0 ? color.green : color.red)
+
+row := row + 1
+
+// Усреднения для лонга
+if useAveraging and longAvgCount > 0
+table.cell(dash, 0, row, "Усреднений:", text_color = color.gray)
+table.cell(dash, 1, row, str.tostring(longAvgCount), text_color = longAvgCount > 0 ? color.orange : color.gray)
+table.cell(dash, 2, row, "", text_color = color.gray)
+
+row := row + 1
+
+else if shortPositionActive
+avgPriceShort = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+table.cell(dash, 0, row, "Цена входа:", text_color = color.gray)
+table.cell(dash, 1, row, str.tostring(avgPriceShort, "#.#####"), text_color = color.red)
+currentPLShort = not na(avgPriceShort) ? ((avgPriceShort - close) / avgPriceShort) * 100 : 0
+table.cell(dash, 2, row, str.tostring(currentPLShort, "#.##") + "%", text_color = currentPLShort >= 0 ? color.green : color.red)
+
+row := row + 1
+
+// Усреднения для шорта
+if useAveraging and shortAvgCount > 0
+table.cell(dash, 0, row, "Усреднений:", text_color = color.gray)
+table.cell(dash, 1, row, str.tostring(shortAvgCount), text_color = shortAvgCount > 0 ? color.orange : color.gray)
+table.cell(dash, 2, row, "", text_color = color.gray)
+
+row := row + 1
+
+else
+table.cell(dash, 0, row, "Статус:", text_color = color.gray)
+table.cell(dash, 1, row, "Ожидание сигнала", text_color = color.white)
+table.cell(dash, 2, row, "", text_color = color.gray)
+
+row := row + 1
+
+// 11. 🎯 ТЕКУЩИЙ СИГНАЛ
+if showCurrentSignalSection
+canTrade = tradingEnabled and not anyPositionActive and not botStopped
+
+signalBg = color.new(#424242, 80)
+if canTrade and finalLongSignal and (botMode == "Оба" or botMode == "Только Лонг")
+signalBg := color.new(#1B5E20, 80)
+else if canTrade and finalShortSignal and (botMode == "Оба" or botMode == "Только Шорт")
+signalBg := color.new(#B71C1C, 80)
+
+table.cell(dash, 0, row, "🎯 ТЕКУЩИЙ СИГНАл", bgcolor = signalBg, text_color = color.white)
+signalText = ""
+if botStopped
+signalText := "БОТ ОСТАНОВЛЕН"
+else if tradingEnabled == false
+signalText := "ТОРГОВЛЯ ПРИОСТАНОВЛЕНА"
+else if anyPositionActive
+signalText := "ПОЗИЦИЯ ОТКРЫТА"
+else if finalLongSignal and (botMode == "Оба" or botMode == "Только Лонг")
+signalText := "ЛОНГ 🟢"
+else if finalShortSignal and (botMode == "Оба" or botMode == "Только Шорт")
+signalText := "ШОРТ 🔴"
+else
+signalText := "ОЖИДАНИЕ ⚪"
+
+signalColor = color.gray
+if signalText == "ЛОНГ 🟢"
+signalColor := color.green
+else if signalText == "ШОРТ 🔴"
+signalColor := color.red
+
+table.cell(dash, 1, row, signalText, text_color = signalColor, text_size = size.normal)
+
+row := row + 1
+
