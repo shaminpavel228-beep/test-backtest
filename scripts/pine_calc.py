@@ -17,16 +17,24 @@ def calculate_average_price(prices: List[float], volumes: List[float]) -> Option
 
 
 def calculate_position_volume(entry_price: float, current_balance: float, risk_per_trade: float, leverage: float) -> float:
+    if entry_price <= 0:
+        raise ValueError("entry_price must be > 0")
+    if current_balance < 0 or risk_per_trade < 0 or leverage <= 0:
+        raise ValueError("invalid parameters: balance/risk/leverage must be non-negative and leverage > 0")
     pos_vol = (current_balance * (risk_per_trade / 100.0)) / entry_price
     max_vol = (current_balance * leverage) / entry_price
     return min(pos_vol, max_vol)
 
 
 def calculate_commission(trade_vol: float, price: float, commission_rate: float) -> float:
+    if trade_vol < 0 or price < 0 or commission_rate < 0:
+        raise ValueError("trade_vol, price and commission_rate must be non-negative")
     return (trade_vol * price) * (commission_rate / 100.0)
 
 
 def calculate_liquidation_price(entry_price: float, is_long: bool, leverage: float, margin_type: str = "Cross") -> float:
+    if entry_price <= 0 or leverage <= 0:
+        raise ValueError("entry_price and leverage must be > 0")
     # mirror Pine logic: isolated uses 0.9 factor, cross uses 0.8
     if margin_type.lower().startswith('из') or margin_type.lower().startswith('iso') or margin_type.lower() == 'isolated':
         factor = 0.9
@@ -51,6 +59,8 @@ def check_sufficient_funds(trade_vol: float, price: float, current_balance: floa
 
 
 def calculate_pnl(entry_price: float, exit_price: float, trade_vol: float, is_long: bool, commission_rate: float) -> float:
+    if trade_vol < 0:
+        raise ValueError("trade_vol must be non-negative")
     if is_long:
         profit = (exit_price - entry_price) * trade_vol
     else:

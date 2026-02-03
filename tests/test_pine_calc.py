@@ -45,6 +45,7 @@ def test_check_sufficient_funds():
 
 
 def test_calculate_pnl_with_commission():
+    import math
     pnl = pine_calc.calculate_pnl(100.0, 110.0, 1.0, True, 0.1)
-    # profit = 10, commission = 0.011 (1*110*0.001) -> result ~9.989
-    assert pnl < 10 and pnl > 9.9
+    # profit = 10, commission = 1*110*(0.1/100) = 0.11 -> result = 9.89
+    assert math.isclose(pnl, 9.89, rel_tol=1e-6)
