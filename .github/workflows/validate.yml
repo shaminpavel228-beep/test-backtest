@@ -18,7 +18,7 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
+          pip install -r requirements-dev.txt
       - name: Build Pine and run validator
         run: |
           python3 scripts/build_pine.py
