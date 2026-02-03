@@ -198,8 +198,8 @@ else if useRSI
     finalShortSignal := rsiShortSignal
 else if useBB
     // Если включен только BB
-finalLongSignal := bbLongSignal
-finalShortSignal := bbShortSignal
+    finalLongSignal := bbLongSignal
+    finalShortSignal := bbShortSignal
 
 // Сигналы для отображения на графике (работают независимо)
 showLongSignal = rsiLongSignal or bbLongSignal
