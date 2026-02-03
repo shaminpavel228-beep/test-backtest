@@ -189,15 +189,15 @@ finalLongSignal = false
 finalShortSignal = false
 
 if useRSI and useBB
-// Если оба индикатора включены - нужны сигналы от обоих
-finalLongSignal := rsiLongSignal and bbLongSignal
-finalShortSignal := rsiShortSignal and bbShortSignal
+    // Если оба индикатора включены - нужны сигналы от обоих
+    finalLongSignal := rsiLongSignal and bbLongSignal
+    finalShortSignal := rsiShortSignal and bbShortSignal
 else if useRSI
-// Если включен только RSI
-finalLongSignal := rsiLongSignal
-finalShortSignal := rsiShortSignal
+    // Если включен только RSI
+    finalLongSignal := rsiLongSignal
+    finalShortSignal := rsiShortSignal
 else if useBB
-// Если включен только BB
+    // Если включен только BB
 finalLongSignal := bbLongSignal
 finalShortSignal := bbShortSignal
 
