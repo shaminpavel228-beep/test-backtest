@@ -181,3 +181,64 @@ def run_simulation(
         trades=trades,
         events=events,
     )
+
+
+from scripts.signals import generate_signals_from_series
+
+
+def run_simulation_from_prices(
+    prices: List[float],
+    # pass-through to run_simulation
+    initial_balance: float = 1000.0,
+    risk_per_trade: float = 1.0,
+    leverage: float = 10.0,
+    commission_rate: float = 0.1,
+    margin_type: str = 'Cross',
+    useSL: bool = True,
+    useTP: bool = True,
+    slPercent: float = 1.0,
+    tpPercent: float = 1.5,
+    useAveraging: bool = True,
+    avgDistancePercent: float = 5.0,
+    martingaleMultiplier: float = 2.0,
+    maxAvgCount: int = 3,
+    min_notional: float = 1.0,
+    record_events: bool = False,
+    # signal generation params (match Pine defaults)
+    useRSI: bool = True,
+    rsiLength: int = 14,
+    rsiLongLevel: int = 30,
+    rsiShortLevel: int = 70,
+    useBB: bool = True,
+    bbLength: int = 20,
+    bbStdDev: float = 2.0,
+):
+    signals = generate_signals_from_series(
+        prices,
+        useRSI=useRSI,
+        rsiLength=rsiLength,
+        rsiLongLevel=rsiLongLevel,
+        rsiShortLevel=rsiShortLevel,
+        useBB=useBB,
+        bbLength=bbLength,
+        bbStdDev=bbStdDev,
+    )
+    return run_simulation(
+        prices,
+        signals,
+        initial_balance=initial_balance,
+        risk_per_trade=risk_per_trade,
+        leverage=leverage,
+        commission_rate=commission_rate,
+        margin_type=margin_type,
+        useSL=useSL,
+        useTP=useTP,
+        slPercent=slPercent,
+        tpPercent=tpPercent,
+        useAveraging=useAveraging,
+        avgDistancePercent=avgDistancePercent,
+        martingaleMultiplier=martingaleMultiplier,
+        maxAvgCount=maxAvgCount,
+        min_notional=min_notional,
+        record_events=record_events,
+    )
