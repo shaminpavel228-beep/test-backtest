@@ -1,0 +1,680 @@
+//@version=5
+indicator("Умный Бот Дашборд Pro v3.3", overlay=true, max_labels_count=500, max_lines_count=500, max_bars_back=5000)
+
+// ============================================
+// ГРУППА 1: ОБЩИЕ НАСТРОЙКИ
+// ============================================
+showDashboard = input.bool(true, "📊 Показать Дашборд", group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+dashboardPosition = input.string("Top Right", "Позиция дашборда", options=["Top Left", "Top Center", "Top Right", "Bottom Left", "Bottom Center", "Bottom Right"], group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+dashboardColumns = input.int(3, "Колонок в дашборде", minval=2, maxval=4, group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+botMode = input.string("Оба", "Режим торговли", options=["Оба", "Только Лонг", "Только Шорт"], group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+
+initialDeposit = input.float(1000, "Начальный депозит ($)", minval=100, maxval=100000, step=100, group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+commission = input.float(0.1, "Комиссия (%)", minval=0.01, maxval=1, step=0.01, group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+marginType = input.string("Изолированная", "Тип маржи", options=["Изолированная", "Кросс"], group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+leverage = input.int(10, "Плечо (1-100)", minval=1, maxval=100, group="🎛️ ОБЩИЕ НАСТРОЙКИ")
+
+// ============================================
+// ГРУППА 2: УПРАВЛЕНИЕ РИСКОМ
+// ============================================
+riskPerTrade = input.float(2.0, "Риск на сделку (%)", minval=0.1, maxval=10, step=0.1, group="🎯 УПРАВЛЕНИЕ РИСКОМ")
+volumeMethod = input.string("По риску", "Метод расчета объема", options=["Фиксированный", "% от депозита", "По риску"], group="🎯 УПРАВЛЕНИЕ РИСКОМ")
+
+// ============================================
+// ГРУППА 3: НАСТРОЙКИ ОРДЕРОВ
+// ============================================
+useTP = input.bool(true, "✅ Включить Тейк-Профит", group="📊 НАСТРОЙКИ ОРДЕРОВ")
+tpPercent = input.float(1.5, "Тейк-Профит %", minval=0.1, maxval=20, step=0.1, group="📊 НАСТРОЙКИ ОРДЕРОВ")
+
+useSL = input.bool(true, "✅ Включить Стоп-Лосс", group="📊 НАСТРОЙКИ ОРДЕРОВ")
+slPercent = input.float(1.0, "Стоп-Лосс %", minval=0.1, maxval=20, step=0.1, group="📊 НАСТРОЙКИ ОРДЕРОВ")
+
+usePendingOrders = input.bool(true, "Использовать отложенные ордера", group="📊 НАСТРОЙКИ ОРДЕРОВ")
+
+// ============================================
+// ГРУППА 4: НАСТРОЙКИ УСРЕДНЕНИЯ
+// ============================================
+useAveraging = input.bool(true, "✅ Включить усреднение", group="📈 НАСТРОЙКИ УСРЕДНЕНИЯ")
+maxAvgCount = input.int(5, "Макс. усреднений (1-10)", minval=1, maxval=10, group="📈 НАСТРОЙКИ УСРЕДНЕНИЯ")
+martingaleMultiplier = input.float(2.0, "Множитель объема", minval=1.0, maxval=3.0, step=0.1, group="📈 НАСТРОЙКИ УСРЕДНЕНИЯ")
+avgDistancePercent = input.float(0.5, "Дистанция усреднения %", minval=0.1, maxval=5.0, step=0.1, group="📈 НАСТРОЙКИ УСРЕДНЕНИЯ")
+
+// ============================================
+// ГРУППА 5: НАСТРОЙКИ ИНДИКАТОРОВ
+// ============================================
+useRSI = input.bool(true, "✅ Включить RSI", group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+rsiLength = input.int(14, "Период RSI (7-30)", minval=7, maxval=30, group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+rsiLongLevel = input.int(30, "Уровень покупки RSI", minval=1, maxval=50, group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+rsiShortLevel = input.int(70, "Уровень продажи RSI", minval=50, maxval=99, group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+
+useBB = input.bool(true, "✅ Включить Bollinger Bands", group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+bbLength = input.int(20, "Период BB (10-50)", minval=10, maxval=50, group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+bbStdDev = input.float(2.0, "Стандартное отклонение", minval=1.5, maxval=3.0, step=0.1, group="📊 НАСТРОЙКИ ИНДИКАТОРОВ")
+
+// ============================================
+// РАСЧЕТ ИНДИКАТОРОВ
+// ============================================
+rsi = ta.rsi(close, rsiLength)
+bbBasis = ta.sma(close, bbLength)
+bbDev = bbStdDev * ta.stdev(close, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+
+// ============================================
+// СИГНАЛЫ (ИСПРАВЛЕННАЯ ЛОГИКА)
+// ============================================
+// Сигналы работают независимо для каждого индикатора
+rsiLongSignal = useRSI and rsi <= rsiLongLevel
+rsiShortSignal = useRSI and rsi >= rsiShortLevel
+bbLongSignal = useBB and close <= bbLower
+bbShortSignal = useBB and close >= bbUpper
+
+// Финальные сигналы (с учетом настроек индикаторов)
+finalLongSignal = false
+finalShortSignal = false
+
+if useRSI and useBB
+    // Если оба индикатора включены - нужны сигналы от обоих
+    finalLongSignal := rsiLongSignal and bbLongSignal
+    finalShortSignal := rsiShortSignal and bbShortSignal
+else if useRSI
+    // Если включен только RSI
+    finalLongSignal := rsiLongSignal
+    finalShortSignal := rsiShortSignal
+else if useBB
+    // Если включен только BB
+    finalLongSignal := bbLongSignal
+    finalShortSignal := bbShortSignal
+
+// Сигналы для отображения на графике (работают независимо)
+showLongSignal = rsiLongSignal or bbLongSignal
+showShortSignal = rsiShortSignal or bbShortSignal
+
+// ============================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ============================================
+var float currentBalance = initialDeposit
+var float maxBalance = initialDeposit
+var float maxDrawdownValue = 0.0
+var bool tradingEnabled = true
+var bool botStopped = false
+
+var float longEntryPrice = na
+var float shortEntryPrice = na
+var int longAvgCount = 0
+var int shortAvgCount = 0
+var float longTotalVolume = 0.0
+var float shortTotalVolume = 0.0
+var bool longPositionActive = false
+var bool shortPositionActive = false
+var bool anyPositionActive = false
+
+var int totalWins = 0
+var int totalLosses = 0
+var float totalProfit = 0.0
+var float totalCommission = 0.0
+
+var array<float> longAvgPrices = array.new<float>(10, na)
+var array<float> shortAvgPrices = array.new<float>(10, na)
+var array<float> longAvgVolumes = array.new<float>(10, 0.0)
+var array<float> shortAvgVolumes = array.new<float>(10, 0.0)
+
+var float longStopLossPrice = na
+var float longTakeProfitPrice = na
+var float shortStopLossPrice = na
+var float shortTakeProfitPrice = na
+
+// ============================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (без изменения глобальных переменных)
+// ============================================
+
+calculateAveragePrice(prices, volumes) =>
+    totalValue = 0.0
+    totalVolume = 0.0
+    for i = 0 to array.size(prices) - 1
+        price = array.get(prices, i)
+        volume = array.get(volumes, i)
+        if not na(price)
+            totalValue := totalValue + price * volume
+            totalVolume := totalVolume + volume
+    totalVolume > 0 ? totalValue / totalVolume : na
+
+calculatePositionVolume(entryPrice, stopLossPrice, isLong) =>
+    float volume = 0.0
+    
+    if volumeMethod == "Фиксированный"
+        volume := (initialDeposit * 0.02) / entryPrice
+    
+    else if volumeMethod == "% от депозита"
+        volume := (currentBalance * (riskPerTrade / 100)) / entryPrice
+    
+    else if volumeMethod == "По риску"
+        riskAmount = currentBalance * (riskPerTrade / 100)
+        priceDifference = math.abs(entryPrice - stopLossPrice)
+        if priceDifference > 0
+            volume := riskAmount / priceDifference
+        else
+            volume := 0
+    
+    maxVolume = (currentBalance * leverage) / entryPrice
+    volume := math.min(volume, maxVolume)
+    volume
+
+calculateCommission(volume, price) =>
+    (volume * price) * (commission / 100)
+
+calculateLiquidationPrice(entryPrice, isLong) =>
+    if marginType == "Изолированная"
+        if isLong
+            entryPrice * (1 - (1 / leverage) * 0.9)
+        else
+            entryPrice * (1 + (1 / leverage) * 0.9)
+    else
+        if isLong
+            entryPrice * (1 - (1 / leverage) * 0.8)
+        else
+            entryPrice * (1 + (1 / leverage) * 0.8)
+
+checkSufficientFunds(volume, price) =>
+    requiredMargin = (volume * price) / leverage
+    freeMargin = currentBalance - (longTotalVolume * (longPositionActive ? longEntryPrice : 0) + shortTotalVolume * (shortPositionActive ? shortEntryPrice : 0)) / leverage
+    requiredMargin <= freeMargin
+
+calculatePnL(entryPrice, exitPrice, volume, isLong) =>
+    float profit = 0.0
+    if isLong
+        profit := (exitPrice - entryPrice) * volume
+    else
+        profit := (entryPrice - exitPrice) * volume
+    
+    commissionFee = calculateCommission(volume, exitPrice)
+    profit - commissionFee
+
+// ============================================
+// ОТРИСОВКА ДАШБОРДА
+// ============================================
+drawDashboard() =>
+    if barstate.islast and showDashboard
+        tablePos = switch dashboardPosition
+            "Top Left" => position.top_left
+            "Top Center" => position.top_center
+            "Top Right" => position.top_right
+            "Bottom Left" => position.bottom_left
+            "Bottom Center" => position.bottom_center
+            "Bottom Right" => position.bottom_right
+            => position.top_right
+        
+        dash = table.new(tablePos, dashboardColumns, 26, bgcolor = color.new(#000000, 80), border_color = color.new(#555555, 50))
+        
+        row = 0
+        
+        // ЗАГОЛОВОК
+        table.cell(dash, 0, row, "⚡ УМНЫЙ БОТ v3.3 ⚡", bgcolor = color.new(#4A148C, 90), text_color = color.white, text_size = size.normal)
+        if dashboardColumns >= 2
+            table.cell(dash, 1, row, "ПРОФЕССИОНАЛЬНЫЙ", bgcolor = color.new(#4A148C, 90), text_color = color.yellow, text_size = size.small)
+        if dashboardColumns >= 3
+            table.cell(dash, 2, row, timeframe.period, bgcolor = color.new(#4A148C, 90), text_color = color.white, text_size = size.small)
+        
+        row := row + 1
+        
+        // КАПИТАЛ И БАЛАНС
+        table.cell(dash, 0, row, "💰 КАПИТАЛ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "Начальный:", text_color = color.gray)
+        table.cell(dash, 2, row, "$" + str.tostring(initialDeposit, "#.##"), text_color = color.white)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Текущий:", text_color = color.gray)
+        balanceColor = currentBalance >= initialDeposit ? color.green : color.red
+        table.cell(dash, 2, row, "$" + str.tostring(currentBalance, "#.##"), text_color = balanceColor)
+        
+        row := row + 1
+        
+        profitPercent = ((currentBalance - initialDeposit) / initialDeposit) * 100
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Прибыль:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(profitPercent, "#.##") + "%", text_color = profitPercent >= 0 ? color.green : color.red)
+        
+        row := row + 1
+        
+        // РИСК
+        table.cell(dash, 0, row, "📊 РИСК", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "Риск/сделку:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(riskPerTrade, "#.#") + "%", text_color = color.yellow)
+        
+        row := row + 1
+        
+        // СТАТУС ТОРГОВЛИ
+        table.cell(dash, 0, row, "⚡ СТАТУС", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "Бот:", text_color = color.gray)
+        statusText = botStopped ? "ОСТАНОВЛЕН" : tradingEnabled ? "АКТИВЕН" : "ПАУЗА"
+        statusColor = botStopped ? color.red : tradingEnabled ? color.green : color.orange
+        table.cell(dash, 2, row, statusText, text_color = statusColor)
+        
+        row := row + 1
+        
+        // РЕЖИМ И МАРЖА
+        table.cell(dash, 0, row, "⚙️ НАСТРОЙКИ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "Режим:", text_color = color.gray)
+        botColor = botMode == "Оба" ? color.orange : botMode == "Только Лонг" ? color.green : color.red
+        table.cell(dash, 2, row, botMode, text_color = botColor)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Маржа:", text_color = color.gray)
+        table.cell(dash, 2, row, marginType, text_color = color.blue)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Плечо:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(leverage) + "x", text_color = color.yellow)
+        
+        row := row + 1
+        
+        // ИНДИКАТОРЫ
+        table.cell(dash, 0, row, "📊 ИНДИКАТОРЫ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "RSI:", text_color = color.gray)
+        rsiColor = rsi <= 30 ? color.green : rsi >= 70 ? color.red : color.white
+        table.cell(dash, 2, row, str.tostring(rsi, "#.##"), text_color = rsiColor)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "BB:", text_color = color.gray)
+        bbPos = close <= bbLower ? "НИЗ" : close >= bbUpper ? "ВЕРХ" : "СРЕД"
+        bbPosColor = close <= bbLower ? color.green : close >= bbUpper ? color.red : color.gray
+        table.cell(dash, 2, row, bbPos, text_color = bbPosColor)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Цена:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(close, "#.#####"), text_color = color.white)
+        
+        row := row + 1
+        
+        // АКТИВНАЯ ПОЗИЦИЯ
+        table.cell(dash, 0, row, "📈 ПОЗИЦИЯ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        if longPositionActive
+            table.cell(dash, 1, row, "ЛОНГ", bgcolor = color.new(#1B5E20, 70), text_color = color.white)
+        else if shortPositionActive
+            table.cell(dash, 1, row, "ШОРТ", bgcolor = color.new(#B71C1C, 70), text_color = color.white)
+        else
+            table.cell(dash, 1, row, "НЕТ", bgcolor = color.new(#424242, 70), text_color = color.white)
+        
+        if dashboardColumns >= 3
+            if longPositionActive or shortPositionActive
+                table.cell(dash, 2, row, "АКТИВНА", text_color = color.green)
+            else
+                table.cell(dash, 2, row, "ОЖИДАНИЕ", text_color = color.gray)
+        
+        row := row + 1
+        
+        if longPositionActive
+            avgPriceLong = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+            table.cell(dash, 0, row, "Цена входа:", text_color = color.gray)
+            table.cell(dash, 1, row, str.tostring(avgPriceLong, "#.#####"), text_color = color.green)
+            
+            if dashboardColumns >= 3
+                currentPLLong = not na(avgPriceLong) ? ((close - avgPriceLong) / avgPriceLong) * 100 : 0
+                table.cell(dash, 2, row, str.tostring(currentPLLong, "#.##") + "%", text_color = currentPLLong >= 0 ? color.green : color.red)
+            
+        else if shortPositionActive
+            avgPriceShort = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+            table.cell(dash, 0, row, "Цена входа:", text_color = color.gray)
+            table.cell(dash, 1, row, str.tostring(avgPriceShort, "#.#####"), text_color = color.red)
+            
+            if dashboardColumns >= 3
+                currentPLShort = not na(avgPriceShort) ? ((avgPriceShort - close) / avgPriceShort) * 100 : 0
+                table.cell(dash, 2, row, str.tostring(currentPLShort, "#.##") + "%", text_color = currentPLShort >= 0 ? color.green : color.red)
+            
+        else
+            table.cell(dash, 0, row, "Статус:", text_color = color.gray)
+            table.cell(dash, 1, row, "Ожидание сигнала", text_color = color.white)
+            if dashboardColumns >= 3
+                table.cell(dash, 2, row, "", text_color = color.gray)
+        
+        row := row + 1
+        
+        // УСРЕДНЕНИЯ
+        if longPositionActive or shortPositionActive
+            table.cell(dash, 0, row, "Усреднений:", text_color = color.gray)
+            if longPositionActive
+                table.cell(dash, 1, row, str.tostring(longAvgCount), text_color = longAvgCount > 0 ? color.orange : color.gray)
+            else
+                table.cell(dash, 1, row, str.tostring(shortAvgCount), text_color = shortAvgCount > 0 ? color.orange : color.gray)
+            
+            if dashboardColumns >= 3
+                table.cell(dash, 2, row, "", text_color = color.gray)
+            
+            row := row + 1
+        
+        // СТАТИСТИКА СДЕЛОК
+        table.cell(dash, 0, row, "📊 СТАТИСТИКА", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "Побед:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(totalWins), text_color = color.green)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Поражений:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(totalLosses), text_color = color.red)
+        
+        row := row + 1
+        
+        winRate = totalWins + totalLosses > 0 ? (totalWins / (totalWins + totalLosses)) * 100 : 0
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Винрейт:", text_color = color.gray)
+        table.cell(dash, 2, row, str.tostring(winRate, "#.##") + "%", text_color = winRate >= 50 ? color.green : color.red)
+        
+        row := row + 1
+        
+        // ОБЩАЯ ПРИБЫЛЬ
+        table.cell(dash, 0, row, "💰 ПРИБЫЛЬ", bgcolor = color.new(#4A148C, 80), text_color = color.white)
+        table.cell(dash, 1, row, "Всего:", text_color = color.gray)
+        table.cell(dash, 2, row, "$" + str.tostring(totalProfit, "#.##"), text_color = totalProfit >= 0 ? color.green : color.red)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "Комиссии:", text_color = color.gray)
+        table.cell(dash, 2, row, "$" + str.tostring(totalCommission, "#.##"), text_color = color.orange)
+        
+        row := row + 1
+        
+        // СИГНАЛЫ
+        table.cell(dash, 0, row, "🎯 СИГНАЛЫ", bgcolor = color.new(#1A237E, 70), text_color = color.white)
+        table.cell(dash, 1, row, "RSI:", text_color = color.gray)
+        rsiSignal = rsiLongSignal or rsiShortSignal
+        table.cell(dash, 2, row, rsiSignal ? "ДА" : "НЕТ", text_color = rsiSignal ? color.green : color.red)
+        
+        row := row + 1
+        
+        table.cell(dash, 0, row, "", text_color = color.gray)
+        table.cell(dash, 1, row, "BB:", text_color = color.gray)
+        bbSignal = bbLongSignal or bbShortSignal
+        table.cell(dash, 2, row, bbSignal ? "ДА" : "НЕТ", text_color = bbSignal ? color.green : color.red)
+        
+        row := row + 1
+        
+        // ТЕКУЩИЙ СИГНАЛ
+        canTrade = tradingEnabled and not anyPositionActive and not botStopped
+        
+        signalBg = color.new(#424242, 80)
+        if canTrade and finalLongSignal and (botMode == "Оба" or botMode == "Только Лонг")
+            signalBg := color.new(#1B5E20, 80)
+        else if canTrade and finalShortSignal and (botMode == "Оба" or botMode == "Только Шорт")
+            signalBg := color.new(#B71C1C, 80)
+        
+        table.cell(dash, 0, row, "🎯 ТЕКУЩИЙ СИГНАЛ", bgcolor = signalBg, text_color = color.white)
+        
+        signalText = ""
+        if botStopped
+            signalText := "БОТ ОСТАНОВЛЕН"
+        else if tradingEnabled == false
+            signalText := "ТОРГОВЛЯ ПРИОСТАНОВЛЕНА"
+        else if anyPositionActive
+            signalText := "ПОЗИЦИЯ ОТКРЫТА"
+        else if finalLongSignal and (botMode == "Оба" or botMode == "Только Лонг")
+            signalText := "ЛОНГ 🟢"
+        else if finalShortSignal and (botMode == "Оба" or botMode == "Только Шорт")
+            signalText := "ШОРТ 🔴"
+        else
+            signalText := "ОЖИДАНИЕ ⚪"
+        
+        signalColor = color.gray
+        if signalText == "ЛОНГ 🟢"
+            signalColor := color.green
+        else if signalText == "ШОРТ 🔴"
+            signalColor := color.red
+        
+        if dashboardColumns >= 2
+            table.cell(dash, 1, row, signalText, text_color = signalColor, text_size = size.normal)
+
+// ============================================
+// ОСНОВНАЯ ТОРГОВАЯ ЛОГИКА
+// ============================================
+if barstate.isconfirmed and not botStopped
+    // Обновляем статус активной позиции
+    anyPositionActive := longPositionActive or shortPositionActive
+    
+    // ОБНОВЛЯЕМ МАКСИМАЛЬНЫЙ БАЛАНС И ПРОСАДКУ
+    if currentBalance > maxBalance
+        maxBalance := currentBalance
+    
+    drawdown = ((maxBalance - currentBalance) / maxBalance) * 100
+    maxDrawdownValue := math.max(maxDrawdownValue, drawdown)
+    
+    // ЛОГИКА ОТКРЫТИЯ ПОЗИЦИЙ
+    if tradingEnabled and not anyPositionActive
+        // ПРОВЕРКА СИГНАЛА НА ЛОНГ
+        if finalLongSignal and (botMode == "Оба" or botMode == "Только Лонг")
+            // Рассчитываем стоп-лосс
+            slPrice = useSL ? close * (1 - slPercent / 100) : calculateLiquidationPrice(close, true)
+            tpPrice = useTP ? close * (1 + tpPercent / 100) : na
+            
+            // Рассчитываем объем
+            volume = calculatePositionVolume(close, slPrice, true)
+            
+            // Проверяем достаточность средств
+            if volume > 0 and checkSufficientFunds(volume, close)
+                // Открываем позицию
+                longEntryPrice := close
+                longPositionActive := true
+                longAvgCount := 0
+                longTotalVolume := volume
+                
+                // Сохраняем цены ордеров
+                longStopLossPrice := slPrice
+                longTakeProfitPrice := tpPrice
+                
+                // Инициализируем массивы для усреднения
+                array.fill(longAvgPrices, na)
+                array.fill(longAvgVolumes, 0.0)
+                array.set(longAvgPrices, 0, longEntryPrice)
+                array.set(longAvgVolumes, 0, volume)
+        
+        // ПРОВЕРКА СИГНАЛА НА ШОРТ
+        else if finalShortSignal and (botMode == "Оба" or botMode == "Только Шорт")
+            // Рассчитываем стоп-лосс
+            slPrice = useSL ? close * (1 + slPercent / 100) : calculateLiquidationPrice(close, false)
+            tpPrice = useTP ? close * (1 - tpPercent / 100) : na
+            
+            // Рассчитываем объем
+            volume = calculatePositionVolume(close, slPrice, false)
+            
+            // Проверяем достаточность средств
+            if volume > 0 and checkSufficientFunds(volume, close)
+                // Открываем позицию
+                shortEntryPrice := close
+                shortPositionActive := true
+                shortAvgCount := 0
+                shortTotalVolume := volume
+                
+                // Сохраняем цены ордеров
+                shortStopLossPrice := slPrice
+                shortTakeProfitPrice := tpPrice
+                
+                // Инициализируем массивы для усреднения
+                array.fill(shortAvgPrices, na)
+                array.fill(shortAvgVolumes, 0.0)
+                array.set(shortAvgPrices, 0, shortEntryPrice)
+                array.set(shortAvgVolumes, 0, volume)
+    
+    // ЛОГИКА УСРЕДНЕНИЯ (ТОЛЬКО В СТОРОНУ УБЫТКА)
+    if longPositionActive and useAveraging and longAvgCount < maxAvgCount
+        avgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+        if not na(avgPrice) and close < avgPrice  // Только если цена ниже средней
+            nextAvgPrice = avgPrice * (1 - avgDistancePercent / 100)
+            if close <= nextAvgPrice
+                // Рассчитываем новый объем по мартингейлу
+                newVolume = longTotalVolume * martingaleMultiplier
+                
+                // Проверяем достаточность средств
+                if checkSufficientFunds(newVolume, close)
+                    // Усредняем позицию
+                    longAvgCount := longAvgCount + 1
+                    array.set(longAvgPrices, longAvgCount, close)
+                    array.set(longAvgVolumes, longAvgCount, newVolume)
+                    longTotalVolume := longTotalVolume + newVolume
+                    
+                    // Пересчитываем среднюю цену для новых ордеров
+                    newAvgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+                    longStopLossPrice := useSL ? newAvgPrice * (1 - slPercent / 100) : calculateLiquidationPrice(newAvgPrice, true)
+                    longTakeProfitPrice := useTP ? newAvgPrice * (1 + tpPercent / 100) : na
+    
+    if shortPositionActive and useAveraging and shortAvgCount < maxAvgCount
+        avgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+        if not na(avgPrice) and close > avgPrice  // Только если цена выше средней
+            nextAvgPrice = avgPrice * (1 + avgDistancePercent / 100)
+            if close >= nextAvgPrice
+                // Рассчитываем новый объем по мартингейлу
+                newVolume = shortTotalVolume * martingaleMultiplier
+                
+                // Проверяем достаточность средств
+                if checkSufficientFunds(newVolume, close)
+                    // Усредняем позицию
+                    shortAvgCount := shortAvgCount + 1
+                    array.set(shortAvgPrices, shortAvgCount, close)
+                    array.set(shortAvgVolumes, shortAvgCount, newVolume)
+                    shortTotalVolume := shortTotalVolume + newVolume
+                    
+                    // Пересчитываем среднюю цену для новых ордеров
+                    newAvgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+                    shortStopLossPrice := useSL ? newAvgPrice * (1 + slPercent / 100) : calculateLiquidationPrice(newAvgPrice, false)
+                    shortTakeProfitPrice := useTP ? newAvgPrice * (1 - tpPercent / 100) : na
+    
+    // ЛОГИКА ЗАКРЫТИЯ ПОЗИЦИЙ
+    if longPositionActive
+        avgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+        if not na(avgPrice)
+            shouldClose = false
+            closeReason = ""
+            
+            // Проверка Тейк-Профита
+            if useTP and close >= longTakeProfitPrice
+                shouldClose := true
+                closeReason := "TP"
+            
+            // Проверка Стоп-Лосса
+            else if useSL and close <= longStopLossPrice
+                shouldClose := true
+                closeReason := "SL"
+            
+            // Проверка ликвидации (если не используем SL)
+            else if not useSL
+                liqPrice = calculateLiquidationPrice(avgPrice, true)
+                if close <= liqPrice
+                    shouldClose := true
+                    closeReason := "LIQ"
+            
+            if shouldClose
+                profit = calculatePnL(avgPrice, close, longTotalVolume, true)
+                currentBalance := currentBalance + profit
+                totalProfit := totalProfit + profit
+                totalCommission := totalCommission + calculateCommission(longTotalVolume, close)
+                
+                if profit >= 0
+                    totalWins := totalWins + 1
+                else
+                    totalLosses := totalLosses + 1
+                
+                longPositionActive := false
+                longAvgCount := 0
+    
+    if shortPositionActive
+        avgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+        if not na(avgPrice)
+            shouldClose = false
+            closeReason = ""
+            
+            // Проверка Тейк-Профита
+            if useTP and close <= shortTakeProfitPrice
+                shouldClose := true
+                closeReason := "TP"
+            
+            // Проверка Стоп-Лосса
+            else if useSL and close >= shortStopLossPrice
+                shouldClose := true
+                closeReason := "SL"
+            
+            // Проверка ликвидации (если не используем SL)
+            else if not useSL
+                liqPrice = calculateLiquidationPrice(avgPrice, false)
+                if close >= liqPrice
+                    shouldClose := true
+                    closeReason := "LIQ"
+            
+            if shouldClose
+                profit = calculatePnL(avgPrice, close, shortTotalVolume, false)
+                currentBalance := currentBalance + profit
+                totalProfit := totalProfit + profit
+                totalCommission := totalCommission + calculateCommission(shortTotalVolume, close)
+                
+                if profit >= 0
+                    totalWins := totalWins + 1
+                else
+                    totalLosses := totalLosses + 1
+                
+                shortPositionActive := false
+                shortAvgCount := 0
+
+// ============================================
+// ОТОБРАЖЕНИЕ НА ГРАФИКЕ
+// ============================================
+// Отображаем сигналы независимо от настройки индикаторов
+plotshape(showLongSignal and tradingEnabled and not anyPositionActive and (botMode == "Оба" or botMode == "Только Лонг"), "Long Signal", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small)
+plotshape(showShortSignal and tradingEnabled and not anyPositionActive and (botMode == "Оба" or botMode == "Только Шорт"), "Short Signal", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small)
+
+plot(bbUpper, "BB Upper", color=color.blue, linewidth=1, display = useBB ? display.all : display.none)
+plot(bbBasis, "BB Basis", color=color.orange, linewidth=1, display = useBB ? display.all : display.none)
+plot(bbLower, "BB Lower", color=color.blue, linewidth=1, display = useBB ? display.all : display.none)
+
+if showDashboard
+    if longPositionActive
+        avgPrice = calculateAveragePrice(longAvgPrices, longAvgVolumes)
+        if not na(avgPrice)
+            line.new(bar_index-10, avgPrice, bar_index, avgPrice, color=color.new(color.green, 50), width=2, style=line.style_solid)
+            
+            if useTP and not na(longTakeProfitPrice)
+                line.new(bar_index-10, longTakeProfitPrice, bar_index, longTakeProfitPrice, color=color.new(color.green, 70), width=1, style=line.style_dashed)
+            
+            if useSL and not na(longStopLossPrice)
+                line.new(bar_index-10, longStopLossPrice, bar_index, longStopLossPrice, color=color.new(color.red, 70), width=1, style=line.style_dashed)
+            
+            if useAveraging and longAvgCount < maxAvgCount
+                nextAvgPrice = avgPrice * (1 - avgDistancePercent / 100)
+                line.new(bar_index-10, nextAvgPrice, bar_index, nextAvgPrice, color=color.new(color.orange, 50), width=1, style=line.style_dotted)
+    
+    if shortPositionActive
+        avgPrice = calculateAveragePrice(shortAvgPrices, shortAvgVolumes)
+        if not na(avgPrice)
+            line.new(bar_index-10, avgPrice, bar_index, avgPrice, color=color.new(color.red, 50), width=2, style=line.style_solid)
+            
+            if useTP and not na(shortTakeProfitPrice)
+                line.new(bar_index-10, shortTakeProfitPrice, bar_index, shortTakeProfitPrice, color=color.new(color.green, 70), width=1, style=line.style_dashed)
+            
+            if useSL and not na(shortStopLossPrice)
+                line.new(bar_index-10, shortStopLossPrice, bar_index, shortStopLossPrice, color=color.new(color.red, 70), width=1, style=line.style_dashed)
+            
+            if useAveraging and shortAvgCount < maxAvgCount
+                nextAvgPrice = avgPrice * (1 + avgDistancePercent / 100)
+                line.new(bar_index-10, nextAvgPrice, bar_index, nextAvgPrice, color=color.new(color.orange, 50), width=1, style=line.style_dotted)
+
+// ============================================
+// ОБНОВЛЕНИЕ ДАШБОРДА
+// ============================================
+if barstate.islast
+    drawDashboard()
+
+// ============================================
+// ИНФОРМАЦИОННАЯ МЕТКА
+// ============================================
+if barstate.islast
+    balanceChange = ((currentBalance - initialDeposit) / initialDeposit) * 100
+    winRateValue = totalWins + totalLosses > 0 ? (totalWins / (totalWins + totalLosses)) * 100 : 0
+    infoText = "Умный Бот Pro v3.3 | Баланс: $" + str.tostring(currentBalance, "#.##") + " (" + str.tostring(balanceChange, "#.##") + "%) | Win Rate: " + str.tostring(winRateValue, "#.##") + "% | Сделок: " + str.tostring(totalWins + totalLosses)
+    label.new(bar_index, high * 1.02, infoText, color=color.new(#1A237E, 90), textcolor=color.white, style=label.style_label_center, size=size.normal)
