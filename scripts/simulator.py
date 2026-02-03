@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from scripts.trade_manager import Position
 from scripts import pine_calc
@@ -13,6 +13,7 @@ class SimulationResult:
     wins: int
     losses: int
     trades: int
+    events: List[Dict] = None
 
 
 def run_simulation(
@@ -31,8 +32,7 @@ def run_simulation(
     avgDistancePercent: float = 5.0,
     martingaleMultiplier: float = 2.0,
     maxAvgCount: int = 3,
-    min_notional: float = 1.0,
-):
+    min_notional: float = 1.0,    record_events: bool = False,):
     assert len(prices) == len(signals)
 
     current_balance = initial_balance
@@ -51,6 +51,8 @@ def run_simulation(
     long_total_volume = 0.0
     short_total_volume = 0.0
 
+    events = [] if record_events else None
+
     for i, close in enumerate(prices):
         sig = signals[i]
 
@@ -61,15 +63,23 @@ def run_simulation(
                 long_pos.open(close, pos_vol, useSL, useTP, slPercent, tpPercent)
                 long_total_volume = long_pos.total_volume
                 trades += 1
+                if record_events:
+                    events.append({
+                        'type': 'open', 'side': 'long', 'price': close, 'volume': pos_vol, 'bar': i,
+                    })
             else:
                 # not enough notional or funds to open
                 pass
         elif sig == 'short' and not short_pos.active and not long_pos.active:
             pos_vol = pine_calc.calculate_position_volume(close, current_balance, risk_per_trade, leverage)
-            if pos_vol > 0 and pine_calc.check_sufficient_funds(pos_vol, close, current_balance, long_total_volume, short_total_volume, long_pos.active, long_pos.entry_price or 0.0, short_pos.active, short_pos.entry_price or 0.0, leverage):
+            if pos_vol > 0 and pos_vol * close >= min_notional and pine_calc.check_sufficient_funds(pos_vol, close, current_balance, long_total_volume, short_total_volume, long_pos.active, long_pos.entry_price or 0.0, short_pos.active, short_pos.entry_price or 0.0, leverage):
                 short_pos.open(close, pos_vol, useSL, useTP, slPercent, tpPercent)
                 short_total_volume = short_pos.total_volume
                 trades += 1
+                if record_events:
+                    events.append({
+                        'type': 'open', 'side': 'short', 'price': close, 'volume': pos_vol, 'bar': i,
+                    })
             else:
                 # not enough notional or funds to open
                 pass
@@ -82,6 +92,10 @@ def run_simulation(
                     # update TP/SL after averaging to match Pine behaviour
                     long_pos.update_targets(useSL, useTP, slPercent, tpPercent)
                     long_total_volume = long_pos.total_volume
+                    if record_events:
+                        events.append({
+                            'type': 'avg', 'side': 'long', 'price': close, 'new_volume': long_pos.avg_volumes[-1], 'avg_count': long_pos.avg_count, 'bar': i,
+                        })
 
         if short_pos.active and useAveraging and short_pos.avg_count < maxAvgCount:
             if short_pos.should_average(close, avgDistancePercent):
@@ -91,6 +105,10 @@ def run_simulation(
                     # update TP/SL after averaging to match Pine behaviour
                     short_pos.update_targets(useSL, useTP, slPercent, tpPercent)
                     short_total_volume = short_pos.total_volume
+                    if record_events:
+                        events.append({
+                            'type': 'avg', 'side': 'short', 'price': close, 'new_volume': short_pos.avg_volumes[-1], 'avg_count': short_pos.avg_count, 'bar': i,
+                        })
 
         # Closing logic for long
         if long_pos.active:
@@ -114,6 +132,10 @@ def run_simulation(
                     current_balance += profit
                     total_profit += profit
                     total_commission += commission
+                    if record_events:
+                        events.append({
+                            'type': 'close', 'side': 'long', 'price': close, 'profit': profit, 'commission': commission, 'reason': close_reason, 'bar': i,
+                        })
                     if profit >= 0:
                         wins += 1
                     else:
@@ -141,6 +163,10 @@ def run_simulation(
                     current_balance += profit
                     total_profit += profit
                     total_commission += commission
+                    if record_events:
+                        events.append({
+                            'type': 'close', 'side': 'short', 'price': close, 'profit': profit, 'commission': commission, 'reason': close_reason, 'bar': i,
+                        })
                     if profit >= 0:
                         wins += 1
                     else:
@@ -153,4 +179,5 @@ def run_simulation(
         wins=wins,
         losses=losses,
         trades=trades,
+        events=events,
     )
