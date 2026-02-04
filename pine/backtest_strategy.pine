@@ -312,19 +312,18 @@ calculatePnL(entryPrice, exitPrice, tradeVol, isLong) =>
 
 
 // --- 27_section_27.pine ---
-// ============================================
-    drawDashboard() =>
+// ==========================
+
+drawDashboard() =>
     if barstate.islast and showDashboard
         tablePos = switch dashboardPosition
-        "Top Left" => position.top_left
-        "Top Center" => position.top_center
-        "Top Right" => position.top_right
-        "Bottom Left" => position.bottom_left
-        "Bottom Center" => position.bottom_center
-        "Bottom Right" => position.bottom_right
-        => position.top_right
-
-    // ФИКСИРУЕМ 3 КОЛОНКИ (убрали dashboardColumns)
+            "Top Left" => position.top_left
+            "Top Center" => position.top_center
+            "Top Right" => position.top_right
+            "Bottom Left" => position.bottom_left
+            "Bottom Center" => position.bottom_center
+            "Bottom Right" => position.bottom_right
+            => position.top_right
     dash = table.new(tablePos, 3, 45, bgcolor = color.new(#000000, 80), border_color = color.new(#555555, 50))
     row = 0
 
