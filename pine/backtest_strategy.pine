@@ -1,7 +1,7 @@
+//@version=5
 // Built from parts in pine/src/parts
 
 // --- 01_preamble.pine ---
-//@version=5
 strategy("🎛️ БЕКТЕСТ ДЛЯ СТРАТЕГИЙ v3.7 [strategy]", overlay=true, max_labels_count=500, max_lines_count=500, max_bars_back=5000, default_qty_type=strategy.fixed, default_qty_value=0, initial_capital=1000)
 
 
